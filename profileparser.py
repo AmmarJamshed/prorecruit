@@ -1,33 +1,30 @@
 import streamlit as st
-import os
 import pandas as pd
 from docx import Document
 from sqlalchemy import create_engine
 import re
 
-# --- Streamlit UI ---
 st.set_page_config(page_title="Candidate Parser", layout="centered")
 st.title("Candidate Profile Extractor & Exporter - Powered by Coursemon")
 
 uploaded_files = st.file_uploader("Upload Candidate DOCX Files", type=["docx"], accept_multiple_files=True)
 
-# --- Section Extraction Functions ---
-def extract_section(text, start_keyword, end_keyword=None):
+def extract_section(text, start_pattern, end_pattern=None):
     try:
-        start_match = re.search(re.escape(start_keyword), text, re.IGNORECASE)
+        start_match = re.search(start_pattern, text, re.IGNORECASE)
         if not start_match:
             return ""
         start = start_match.end()
 
-        if end_keyword:
-            end_match = re.search(re.escape(end_keyword), text[start:], re.IGNORECASE)
+        if end_pattern:
+            end_match = re.search(end_pattern, text[start:], re.IGNORECASE)
             if end_match:
                 end = start + end_match.start()
                 return text[start:end].strip()
 
         return text[start:].strip()
     except Exception as e:
-        return f"Extraction error: {e}"
+        return f"Error extracting section: {e}"
 
 def extract_name(text):
     try:
@@ -35,54 +32,54 @@ def extract_name(text):
     except:
         return "Unknown"
 
-# --- Main Parsing Logic ---
 def parse_docx(file):
     doc = Document(file)
     full_text = "\n".join([para.text.strip() for para in doc.paragraphs if para.text.strip()])
 
-    # Debug: Show raw extracted text
-    st.text_area("🧾 Raw Document Text", full_text, height=300)
+    # Debug: view all text
+    st.text_area("📜 Raw Text Extracted", full_text, height=300)
 
-    candidate_data = {
+    data = {
         "Name": extract_name(full_text),
-        "DOB": extract_section(full_text, "DOB:", "Nationality:"),
-        "Nationality": extract_section(full_text, "Nationality:", "Languages:"),
-        "Languages": extract_section(full_text, "Languages:", "Current Location:"),
-        "Education": extract_section(full_text, "Qualification", "Professional Training"),
-        "Experience Summary": extract_section(full_text, "Summary of Experience", "Qualification"),
-        "Work History": extract_section(full_text, "Detailed Work Experience", "Qualification" if "Qualification" in full_text else "Trainings")
+        "DOB": extract_section(full_text, r"DOB[:]*", r"Nationality[:]*"),
+        "Nationality": extract_section(full_text, r"Nationality[:]*", r"Languages[:]*"),
+        "Languages": extract_section(full_text, r"Languages[:]*", r"Current Location[:]*"),
+        "Education": extract_section(full_text, r"Qualification", r"Professional Training|Trainings|Detailed Work Experience"),
+        "Experience Summary": extract_section(full_text, r"Summary of Experience", r"Qualification|Professional Training"),
+        "Work History": extract_section(full_text, r"Detailed Work Experience", r"Qualification|Trainings|Availability|Current Package|Prepared for")
     }
-    return candidate_data
 
-# --- Process Uploaded Files ---
-all_data = []
+    return data
+
+# Main logic
+parsed_profiles = []
 
 if uploaded_files:
     for file in uploaded_files:
-        candidate_data = parse_docx(file)
-        all_data.append(candidate_data)
+        profile = parse_docx(file)
+        parsed_profiles.append(profile)
 
-    df = pd.DataFrame(all_data)
+    df = pd.DataFrame(parsed_profiles)
 
-    st.success("✅ Extraction Completed!")
+    st.success("✅ Extraction Completed")
     st.dataframe(df)
 
-    # --- CSV Download ---
-    csv_file = df.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Download as CSV", csv_file, "candidate_profiles.csv", "text/csv")
+    # CSV Export
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("📥 Download CSV", csv, "candidate_profiles.csv", "text/csv")
 
-    # --- Optional: Upload to MySQL ---
-    with st.expander("🔗 Connect to MySQL and Upload"):
-        host = st.text_input("MySQL Host", "localhost")
-        user = st.text_input("MySQL Username")
-        password = st.text_input("MySQL Password", type="password")
-        db_name = st.text_input("Database Name")
-        table_name = st.text_input("Table Name", "candidate_profiles")
+    # MySQL Upload
+    with st.expander("🔗 Upload to MySQL"):
+        host = st.text_input("Host", "localhost")
+        user = st.text_input("User")
+        password = st.text_input("Password", type="password")
+        db = st.text_input("Database")
+        table = st.text_input("Table", "candidate_profiles")
 
-        if st.button("Upload to MySQL"):
+        if st.button("Upload"):
             try:
-                engine = create_engine(f'mysql+pymysql://{user}:{password}@{host}/{db_name}')
-                df.to_sql(table_name, con=engine, if_exists='append', index=False)
-                st.success("✅ Data uploaded to MySQL successfully!")
+                engine = create_engine(f'mysql+pymysql://{user}:{password}@{host}/{db}')
+                df.to_sql(table, con=engine, if_exists='append', index=False)
+                st.success("✅ Uploaded to MySQL!")
             except Exception as e:
-                st.error(f"❌ Error uploading to MySQL: {e}")
+                st.error(f"❌ Upload failed: {e}")
