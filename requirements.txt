@@ -3,3 +3,4 @@ python-docx
 pandas
 pymysql
 sqlalchemy
+python-dateutil
