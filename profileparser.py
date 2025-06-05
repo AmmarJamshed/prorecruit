@@ -46,29 +46,6 @@ def parse_docx(file):
     }
     return data
 
-def handle_natural_query(query, df):
-    query = query.lower()
-    
-    if "pakistani" in query:
-        return df[df["Nationality"].str.contains("pakistani", case=False, na=False)]
-
-    if "english" in query:
-        return df[df["Languages"].str.contains("english", case=False, na=False)]
-
-    if "python" in query:
-        return df[df["Work History"].str.contains("python", case=False, na=False)]
-
-    if "last 10 years" in query:
-        def is_recent(dob):
-            try:
-                dob_date = dateutil.parser.parse(dob, fuzzy=True)
-                return (datetime.now().year - dob_date.year) <= 10
-            except:
-                return False
-        return df[df["DOB"].apply(is_recent)]
-
-    return "❌ Query not recognized. Please rephrase."
-
 parsed_profiles = []
 if uploaded_files:
     for file in uploaded_files:
@@ -77,7 +54,7 @@ if uploaded_files:
 
     df = pd.DataFrame(parsed_profiles)
 
-    tab1, tab2, tab3 = st.tabs(["📄 View & Download", "🔗 Upload to MySQL", "🧠 Query in Simple English"])
+    tab1, tab2 = st.tabs(["📄 View & Download", "🔗 Upload to MySQL"])
 
     with tab1:
         st.success("✅ Extraction Completed")
@@ -90,7 +67,7 @@ if uploaded_files:
         # Dropdown filters
         nationality_filter = st.selectbox("Filter by Nationality", ["All"] + sorted(df["Nationality"].dropna().unique().tolist()))
         language_filter = st.selectbox("Filter by Language", ["All"] + sorted(df["Languages"].dropna().unique().tolist()))
-        location_filter = st.selectbox("Filter by Current Location", ["All"] + sorted(df["Languages"].dropna().unique().tolist()))  # Replace with actual location if available
+        location_filter = st.selectbox("Filter by Current Location", ["All"] + sorted(df["Languages"].dropna().unique().tolist()))  # Replace if location column exists
 
         # Apply filters
         filtered_df = df.copy()
@@ -101,7 +78,7 @@ if uploaded_files:
         if language_filter != "All":
             filtered_df = filtered_df[filtered_df["Languages"].str.contains(language_filter, case=False, na=False)]
         if location_filter != "All":
-            filtered_df = filtered_df[filtered_df["Languages"].str.contains(location_filter, case=False, na=False)]  # Replace column if actual location
+            filtered_df = filtered_df[filtered_df["Languages"].str.contains(location_filter, case=False, na=False)]  # Replace with actual location field if available
 
         st.dataframe(filtered_df)
 
@@ -123,18 +100,6 @@ if uploaded_files:
                     st.success("✅ Uploaded to MySQL!")
                 except Exception as e:
                     st.error(f"❌ Upload failed: {e}")
-
-    with tab3:
-        st.markdown("Try queries like:")
-        st.code("Show me records of the last 10 years\nShow candidates with Pakistani nationality\nShow all who know English")
-
-        user_query = st.text_input("Type your question here:")
-        if st.button("Run Query"):
-            result = handle_natural_query(user_query, df)
-            if isinstance(result, str):
-                st.warning(result)
-            else:
-                st.dataframe(result)
 
 else:
     st.info("📂 Please upload at least one DOCX file to begin.")
