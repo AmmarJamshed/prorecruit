@@ -49,19 +49,15 @@ def parse_docx(file):
 def handle_natural_query(query, df):
     query = query.lower()
     
-    # 1. Nationality
     if "pakistani" in query:
         return df[df["Nationality"].str.contains("pakistani", case=False, na=False)]
 
-    # 2. Language
     if "english" in query:
         return df[df["Languages"].str.contains("english", case=False, na=False)]
 
-    # 3. Keyword in work history
     if "python" in query:
         return df[df["Work History"].str.contains("python", case=False, na=False)]
 
-    # 4. Last 10 years
     if "last 10 years" in query:
         def is_recent(dob):
             try:
@@ -73,7 +69,6 @@ def handle_natural_query(query, df):
 
     return "❌ Query not recognized. Please rephrase."
 
-# --- Main Logic ---
 parsed_profiles = []
 if uploaded_files:
     for file in uploaded_files:
@@ -82,13 +77,35 @@ if uploaded_files:
 
     df = pd.DataFrame(parsed_profiles)
 
-    # --- Tabs ---
     tab1, tab2, tab3 = st.tabs(["📄 View & Download", "🔗 Upload to MySQL", "🧠 Query in Simple English"])
 
     with tab1:
         st.success("✅ Extraction Completed")
-        st.dataframe(df)
-        csv = df.to_csv(index=False).encode("utf-8")
+
+        st.subheader("🔍 Filter Candidates")
+
+        # Search by name
+        name_query = st.text_input("Search by Candidate Name (Job Title Equivalent)", "")
+
+        # Dropdown filters
+        nationality_filter = st.selectbox("Filter by Nationality", ["All"] + sorted(df["Nationality"].dropna().unique().tolist()))
+        language_filter = st.selectbox("Filter by Language", ["All"] + sorted(df["Languages"].dropna().unique().tolist()))
+        location_filter = st.selectbox("Filter by Current Location", ["All"] + sorted(df["Languages"].dropna().unique().tolist()))  # Replace with actual location if available
+
+        # Apply filters
+        filtered_df = df.copy()
+        if name_query:
+            filtered_df = filtered_df[filtered_df["Name"].str.contains(name_query, case=False, na=False)]
+        if nationality_filter != "All":
+            filtered_df = filtered_df[filtered_df["Nationality"].str.contains(nationality_filter, case=False, na=False)]
+        if language_filter != "All":
+            filtered_df = filtered_df[filtered_df["Languages"].str.contains(language_filter, case=False, na=False)]
+        if location_filter != "All":
+            filtered_df = filtered_df[filtered_df["Languages"].str.contains(location_filter, case=False, na=False)]  # Replace column if actual location
+
+        st.dataframe(filtered_df)
+
+        csv = filtered_df.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Download CSV", csv, "candidate_profiles.csv", "text/csv")
 
     with tab2:
